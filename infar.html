@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>3D Car Scene - Main Menu & Settings</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overscroll-behavior: none;
+            touch-action: none;
+            color: #fff; /* Default text color for menus */
+        }
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 0; /* Behind UI */
+        }
+        #loading-screen {
+            position: fixed; /* Use fixed to ensure it covers everything */
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 2em;
+            z-index: 200;
+            opacity: 1;
+            transition: opacity 0.5s ease-out;
+        }
+        #loading-screen.hidden {
+             opacity: 0;
+             pointer-events: none;
+        }
+
+        /* --- Game UI (Top Left & Top Right) --- */
+        #game-ui-top {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px; /* For day/night toggle */
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            z-index: 50;
+            pointer-events: none; /* Container doesn't block clicks */
+        }
+        #game-ui-top > div, #game-ui-top > button {
+            pointer-events: auto; /* Children are interactive */
+        }
+        #score-difficulty-container {
+            color: white;
+            text-shadow: 1px 1px 3px black;
+            font-size: 1.2em;
+        }
+        #score { margin-bottom: 5px; }
+        #difficulty-select-container { margin-bottom: 5px; }
+        #difficulty-select-container label { font-size: 0.9em; }
+        #difficulty-select { font-size: 0.9em; padding: 2px; background: #333; color: white; border: 1px solid #555;}
+        #day-night-toggle {
+            padding: 8px 12px;
+            font-size: 1em;
+            background-color: rgba(50, 50, 150, 0.7);
+            color: white;
+            border: 1px solid white;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+
+        /* --- Game Over & Restart --- */
+        #game-over-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 101;
+            display: none; /* Hidden initially */
+        }
+        #game-over {
+            color: #ff4444;
+            font-size: 3.5em;
+            font-weight: bold;
+            text-shadow: 2px 2px 5px black;
+            margin-bottom: 20px;
+        }
+        #restart-button {
+            padding: 10px 20px;
+            font-size: 1.5em;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #restart-button:hover { background-color: #45a049; }
+
+
+        /* --- Mobile Control Buttons (Bottom) --- */
+        #mobile-controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            padding-bottom: 20px; /* Keep buttons off very bottom edge */
+            display: flex; /* For centering brake button relative to L/R */
+            justify-content: space-between; /* L/R buttons to edges */
+            align-items: flex-end; /* Align to bottom */
+            box-sizing: border-box;
+            z-index: 60;
+            pointer-events: none; /* Container doesn't block clicks */
+        }
+         #mobile-controls > .control-button {
+            pointer-events: auto; /* Buttons are interactive */
+        }
+
+        .control-button {
+            width: 70px;
+            height: 70px;
+            background-color: rgba(255, 255, 255, 0.3);
+            border: 2px solid rgba(0, 0, 0, 0.5);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 2.2em;
+            color: rgba(0, 0, 0, 0.7);
+            cursor: pointer;
+            user-select: none; -webkit-user-select: none; -ms-user-select: none; -moz-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .control-button:active { background-color: rgba(255, 255, 255, 0.5); }
+
+        #left-button { margin-left: 15px; }
+        #right-button { margin-right: 15px; }
+        #brake-button {
+            /* Positioned by flex parent if needed, or absolute for true center */
+            position: absolute; /* To center it perfectly */
+            left: 50%;
+            bottom: 0px; /* Aligns with L/R buttons based on #mobile-controls padding */
+            transform: translateX(-50%);
+            width: 90px;
+            border-radius: 35px;
+            font-size: 1.5em;
+        }
+
+        /* --- Main Menu & Settings Menu --- */
+        .menu-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.75); /* Semi-transparent overlay */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 150; /* Above game UI, below loading */
+        }
+        .menu-screen h1, .menu-screen h2 {
+            color: #eee;
+            text-shadow: 2px 2px 4px #000;
+            margin-bottom: 30px;
+        }
+        .menu-button {
+            padding: 12px 25px;
+            font-size: 1.2em;
+            margin: 10px;
+            min-width: 150px;
+            background-color: #306090;
+            color: white;
+            border: 1px solid #5080c0;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .menu-button:hover {
+            background-color: #4070a0;
+        }
+        #settings-menu label {
+            margin-right: 10px;
+            font-size: 1.1em;
+        }
+        #settings-menu input[type="range"] {
+            vertical-align: middle;
+            width: 150px;
+        }
+
+    </style>
+</head>
+<body>
+    <div id="loading-screen">Loading Game...</div>
+    <div id="container"></div> <!-- Three.js Canvas goes here -->
+
+    <!-- Game Specific UI -->
+    <div id="game-ui-top" style="display: none;"> <!-- Hidden initially -->
+        <div id="score-difficulty-container">
+            <div id="score">Score: 0</div>
+            <div id="difficulty-select-container">
+                <label for="difficulty-select">Difficulty: </label>
+                <select id="difficulty-select">
+                    <option value="easy">Easy</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="hard">Hard</option>
+                    <option value="extreme">Extreme</option>
+                    <option value="crazy">Crazy</option>
+                </select>
+            </div>
+        </div>
+        <button id="day-night-toggle">Toggle Day/Night</button>
+    </div>
+
+    <div id="mobile-controls" style="display: none;"> <!-- Hidden initially -->
+        <div id="left-button" class="control-button">◀</div>
+        <div id="brake-button" class="control-button">BRAKE</div>
+        <div id="right-button" class="control-button">▶</div>
+    </div>
+
+    <!-- Game Over UI -->
+    <div id="game-over-container">
+        <div id="game-over">GAME OVER!</div>
+        <button id="restart-button">Restart Game</button>
+    </div>
+
+
+    <!-- Main Menu -->
+    <div id="main-menu" class="menu-screen">
+        <h1>3D Car Racer</h1>
+        <button id="play-button" class="menu-button">Play</button>
+        <button id="settings-button" class="menu-button">Settings</button>
+        <button id="quit-button" class="menu-button">Quit</button>
+    </div>
+
+    <!-- Settings Menu -->
+    <div id="settings-menu" class="menu-screen" style="display: none;">
+        <h2>Settings</h2>
+        <div>
+            <label for="volume-slider">Volume:</label>
+            <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.5">
+            <span id="volume-value">50%</span>
+        </div>
+        <button id="back-to-main-menu-button" class="menu-button" style="margin-top: 30px;">Back</button>
+    </div>
+
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.164.1/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.164.1/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        let scene, camera, renderer, carModel, enemyCar, controls;
+        let originalCarMaterials = new Map();
+        let ambientLight, directionalLight;
+        let road, roadLines = [], kerbs = [];
+        let buildings = [], streetLights = [], trafficLights = [], petrolStations = [];
+
+        const roadWidth = 10;
+        const roadLength = 200;
+        const sceneryLoopLength = roadLength * 1.5;
+
+        const buildingSpacing = 18;
+        const lightSpacing = 30;
+        const petrolStationSpacing = roadLength * 0.8;
+        let nextPetrolStationZ = roadLength / 2 - Math.random() * petrolStationSpacing;
+
+        const baseNormalDriveSpeed = 0.5;
+        let normalDriveSpeed = baseNormalDriveSpeed;
+        let currentDriveSpeed = normalDriveSpeed;
+        const brakingSpeedFactor = 0.1;
+
+        const baseEnemyCarSpeed = 0.4;
+        let enemyCarSpeed = baseEnemyCarSpeed;
+
+        const kerbHeight = 0.2;
+        const kerbWidth = 0.3;
+
+        // --- Game State ---
+        let gameState = 'MENU'; // MENU, PLAYING, SETTINGS
+        let moveLeft = false;
+        let moveRight = false;
+        let isBraking = false;
+        const carMoveSpeed = 0.15;
+        let carBaseY = 0;
+        let score = 0;
+        let isGameOver = false; // This is separate from gameState for game over overlay
+        let isDay = true;
+        let currentDifficulty = 'medium';
+        let masterVolume = 0.5; // Placeholder for sound volume
+        // --- End Game State ---
+
+        const points = [];
+        const numPoints = 15;
+        const pointValue = 10;
+        let pointGeometry, pointMaterial;
+        const pointRadius = 0.3;
+
+        // --- UI Elements ---
+        const loadingScreen = document.getElementById('loading-screen');
+        const gameUiTop = document.getElementById('game-ui-top');
+        const mobileControlsUI = document.getElementById('mobile-controls');
+        const scoreElement = document.getElementById('score');
+        const gameOverContainer = document.getElementById('game-over-container');
+        const gameOverElement = document.getElementById('game-over'); // Already defined, just ensuring it's used
+        const restartButton = document.getElementById('restart-button');
+        const dayNightToggle = document.getElementById('day-night-toggle');
+        const difficultySelect = document.getElementById('difficulty-select');
+
+        const mainMenu = document.getElementById('main-menu');
+        const settingsMenu = document.getElementById('settings-menu');
+        const playButton = document.getElementById('play-button');
+        const settingsButton = document.getElementById('settings-button');
+        const quitButton = document.getElementById('quit-button');
+        const volumeSlider = document.getElementById('volume-slider');
+        const volumeValueDisplay = document.getElementById('volume-value');
+        const backToMainMenuButton = document.getElementById('back-to-main-menu-button');
+
+
+        let playerBox = new THREE.Box3();
+        let enemyBox = new THREE.Box3();
+        let pointBox = new THREE.Box3();
+
+        const loadingManager = new THREE.LoadingManager();
+        const textureLoader = new THREE.TextureLoader(loadingManager);
+        const gltfLoader = new GLTFLoader(loadingManager);
+
+        const dificultades = { easy: { driveSpeedFactor: 0.8, enemySpeedFactor: 0.6 }, medium:  { driveSpeedFactor: 1.0, enemySpeedFactor: 1.0 }, hard:    { driveSpeedFactor: 1.1, enemySpeedFactor: 1.3 }, extreme: { driveSpeedFactor: 1.2, enemySpeedFactor: 1.7 }, crazy:   { driveSpeedFactor: 1.4, enemySpeedFactor: 2.2 } };
+        const daySettings = { skyColor: 0xa0d7e6, fogColor: 0xa0d7e6, fogNearFactor: 0.4, fogFarFactor: 0.9, ambientIntensity: 0.7, dirIntensity: 1.2, dirPosition: new THREE.Vector3(50, 100, 50), streetLightEmissive: 0.1, streetLightPointIntensity: 0, windowColor: '#6080a0', buildingBaseTintFactor: 1.0 };
+        const nightSettings = { skyColor: 0x102030, fogColor: 0x102030, fogNearFactor: 0.3, fogFarFactor: 0.85, ambientIntensity: 0.25, dirIntensity: 0.5, dirPosition: new THREE.Vector3(70, 80, -60), streetLightEmissive: 1.5, streetLightPointIntensity: 35, windowColor: '#ffe066', buildingBaseTintFactor: 0.7 };
+
+        loadingManager.onLoad = () => { console.log("All resources loaded!"); loadingScreen.classList.add('hidden'); setTimeout(() => { if (loadingScreen) loadingScreen.style.display = 'none'; manageUI(); }, 600); }; // Call manageUI after loading
+        loadingManager.onError = (url) => { console.error(`There was an error loading ${url}`); loadingScreen.textContent = `Error loading: ${url}. Check console.`; loadingScreen.classList.remove('hidden'); loadingScreen.style.opacity = 1; };
+        loadingManager.onProgress = (url, itemsLoaded, itemsTotal) => { const progress = Math.round((itemsLoaded / itemsTotal) * 100); loadingScreen.textContent = `Loading ${progress}%... (${itemsLoaded}/${itemsTotal})`; };
+
+        init(); // Three.js setup
+        setupMenuControls(); // Menu button listeners
+        applyDifficulty();
+        updateVisualMode(); // Initial visual setup
+        manageUI(); // Initial UI state
+        animate();
+
+        function manageUI() {
+            mainMenu.style.display = (gameState === 'MENU') ? 'flex' : 'none';
+            settingsMenu.style.display = (gameState === 'SETTINGS') ? 'flex' : 'none';
+
+            const isPlaying = gameState === 'PLAYING' && !isGameOver;
+            gameUiTop.style.display = isPlaying ? 'flex' : 'none';
+            mobileControlsUI.style.display = isPlaying ? 'flex' : 'none';
+            difficultySelect.disabled = !isPlaying && gameState !== 'MENU'; // Enable in menu or if playing (though it resets)
+
+            gameOverContainer.style.display = isGameOver ? 'block' : 'none';
+
+            if (controls) {
+                controls.enabled = isPlaying; // Enable orbit controls only when playing
+            }
+        }
+
+
+        function applyDifficulty() { currentDifficulty = difficultySelect.value; const diff = dificultades[currentDifficulty]; normalDriveSpeed = baseNormalDriveSpeed * diff.driveSpeedFactor; enemyCarSpeed = baseEnemyCarSpeed * diff.enemySpeedFactor; console.log(`Difficulty set to ${currentDifficulty}: DriveSpeed=${normalDriveSpeed.toFixed(2)}, EnemySpeed=${enemyCarSpeed.toFixed(2)}`); }
+        function updateVisualMode() { const settings = isDay ? daySettings : nightSettings; scene.background = new THREE.Color(settings.skyColor); scene.fog.color.setHex(settings.skyColor); scene.fog.near = roadLength * settings.fogNearFactor; scene.fog.far = roadLength * settings.fogFarFactor; ambientLight.intensity = settings.ambientIntensity; directionalLight.intensity = settings.dirIntensity; directionalLight.position.copy(settings.dirPosition); streetLights.forEach(slGroup => { const fixture = slGroup.children.find(child => child.material && child.material.emissive); const pointLight = slGroup.children.find(child => child.isPointLight); if (fixture) fixture.material.emissiveIntensity = settings.streetLightEmissive; if (pointLight) pointLight.intensity = settings.streetLightPointIntensity; }); buildings.forEach(b => { if(b.material.map && b.userData.originalBaseColor) { b.material.color.copy(b.userData.originalBaseColor).multiplyScalar(settings.buildingBaseTintFactor); } }); petrolStations.forEach(ps => { if(ps.material && ps.userData.originalBaseColor) { ps.material.color.copy(ps.userData.originalBaseColor).multiplyScalar(settings.buildingBaseTintFactor); } }); dayNightToggle.textContent = isDay ? "Set Night" : "Set Day"; }
+
+
+        function init() {
+            console.log("Init started");
+            scene = new THREE.Scene();
+            scene.fog = new THREE.Fog(0x000000, 1, 1);
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 5, -10);
+            camera.lookAt(0, 1, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 0.95;
+            document.getElementById('container').appendChild(renderer.domElement);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.screenSpacePanning = false;
+            controls.enablePan = true;
+            controls.minDistance = 2.5;
+            controls.maxDistance = 25;
+            controls.minPolarAngle = Math.PI / 8;
+            controls.maxPolarAngle = Math.PI / 2 - 0.05;
+            controls.target.set(0, 1, 0);
+            controls.enabled = false; // Disabled initially, enabled when gameState is 'PLAYING'
+
+            ambientLight = new THREE.AmbientLight(0xffffff, 0.5); scene.add(ambientLight);
+            directionalLight = new THREE.DirectionalLight(0xffffff, 1.0); directionalLight.castShadow = true; directionalLight.shadow.mapSize.width = 2048; directionalLight.shadow.mapSize.height = 2048; directionalLight.shadow.camera.near = 0.5; directionalLight.shadow.camera.far = 500; directionalLight.shadow.camera.left = -roadLength; directionalLight.shadow.camera.right = roadLength; directionalLight.shadow.camera.top = roadLength; directionalLight.shadow.camera.bottom = -roadLength; scene.add(directionalLight);
+
+            // All geometry and model loading remains the same as your last "perfect" version
+            const grassTexture = textureLoader.load('https://threejs.org/examples/textures/terrain/grasslight-big.jpg'); grassTexture.wrapS = THREE.RepeatWrapping; grassTexture.wrapT = THREE.RepeatWrapping; grassTexture.repeat.set(80, 80); const groundGeo = new THREE.PlaneGeometry(roadLength * 2.5, sceneryLoopLength * 1.2); const groundMat = new THREE.MeshStandardMaterial({ map: grassTexture, side: THREE.DoubleSide }); const ground = new THREE.Mesh(groundGeo, groundMat); ground.rotation.x = -Math.PI / 2; ground.position.y = -0.05; ground.receiveShadow = true; scene.add(ground);
+            const roadGeo = new THREE.PlaneGeometry(roadWidth, sceneryLoopLength); const roadMat = new THREE.MeshStandardMaterial({ color: 0x4a4a4a, side: THREE.DoubleSide }); road = new THREE.Mesh(roadGeo, roadMat); road.rotation.x = -Math.PI / 2; road.position.y = 0.0; road.receiveShadow = true; scene.add(road);
+            const lineLength = 4; const lineGap = 4; const numLines = Math.floor(sceneryLoopLength / (lineLength + lineGap)); const lineGeo = new THREE.PlaneGeometry(0.3, lineLength); const lineMat = new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.DoubleSide }); for (let i = 0; i < numLines; i++) { const line = new THREE.Mesh(lineGeo, lineMat); line.rotation.x = -Math.PI / 2; line.position.y = 0.005; line.position.z = (sceneryLoopLength / 2) - (lineLength / 2) - i * (lineLength + lineGap); line.receiveShadow = true; roadLines.push(line); scene.add(line); }
+            function createKerbTexture() { const c = document.createElement('canvas'); const x = c.getContext('2d'); c.width = 64; c.height = 16; const s = 8; const o = ['#cc0000', '#eeeeee']; for (let i = 0; i < c.width / s; i++) { x.fillStyle = o[i % 2]; x.fillRect(i * s, 0, s, c.height); } return new THREE.CanvasTexture(c); } const kerbTexture = createKerbTexture(); kerbTexture.wrapS = THREE.RepeatWrapping; kerbTexture.wrapT = THREE.ClampToEdgeWrapping; kerbTexture.repeat.set(sceneryLoopLength / 4, 1); const kerbGeo = new THREE.BoxGeometry(kerbWidth, kerbHeight, sceneryLoopLength); const kerbMat = new THREE.MeshStandardMaterial({ map: kerbTexture }); const kL = new THREE.Mesh(kerbGeo, kerbMat); kL.position.set(-(roadWidth / 2) - (kerbWidth / 2), kerbHeight / 2, 0); kL.castShadow = true; kL.receiveShadow = true; scene.add(kL); kerbs.push(kL); const kR = new THREE.Mesh(kerbGeo, kerbMat); kR.position.set((roadWidth / 2) + (kerbWidth / 2), kerbHeight / 2, 0); kR.castShadow = true; kR.receiveShadow = true; scene.add(kR); kerbs.push(kR);
+            function getWindowColorForMode() { return isDay ? daySettings.windowColor : nightSettings.windowColor; }
+            function createWindowTexture(width, height, baseBuildingColor = '#777777') { const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d'); canvas.width = 128; canvas.height = 128; const currentWindowColor = getWindowColorForMode(); ctx.fillStyle = baseBuildingColor; ctx.fillRect(0, 0, canvas.width, canvas.height); const windowW = 20; const windowH = 30; const spacingW = 10; const spacingH = 15; const frameSize = 2; for (let y = spacingH; y + windowH < canvas.height; y += windowH + spacingH) { for (let x = spacingW; x + windowW < canvas.width; x += windowW + spacingW) { ctx.fillStyle = '#333333'; ctx.fillRect(x, y, windowW, windowH); ctx.fillStyle = currentWindowColor; ctx.fillRect(x + frameSize, y + frameSize, windowW - 2 * frameSize, windowH - 2 * frameSize); } } const texture = new THREE.CanvasTexture(canvas); texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(Math.max(1, Math.floor(width / 4)), Math.max(1, Math.floor(height / 6))); return texture; }
+            function createShopTexture(width, height) { const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d'); canvas.width = 256; canvas.height = 128; const currentWindowColor = getWindowColorForMode(); ctx.fillStyle = '#6a6a70'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = '#222233'; ctx.fillRect(20, 30, canvas.width - 40, canvas.height - 50); ctx.fillStyle = currentWindowColor; ctx.fillRect(25, 35, canvas.width - 50, canvas.height - 60); ctx.fillStyle = '#444455'; ctx.fillRect(10, 5, canvas.width - 20, 20); ctx.fillStyle = 'white'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center'; ctx.fillText('MEGA STORE', canvas.width / 2, 19); const texture = new THREE.CanvasTexture(canvas); texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(Math.max(1, Math.floor(width / 8)), Math.max(1, Math.floor(height / 5))); return texture; }
+            function createCafeTexture(width, height) { const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d'); canvas.width = 128; canvas.height = 128; const currentWindowColor = getWindowColorForMode(); ctx.fillStyle = '#8B7355'; ctx.fillRect(0, 0, canvas.width, canvas.height); for (let i = 0; i < canvas.width; i += 20) { ctx.fillStyle = (i / 20) % 2 === 0 ? '#FFFAF0' : '#CD5C5C'; ctx.fillRect(i, 25, 20, 20); } ctx.fillStyle = '#503020'; ctx.fillRect(0,0,canvas.width, 25); const winW = 25, winH = 30, sp = 10; for(let x = sp; x + winW < canvas.width; x += winW + sp) { ctx.fillStyle = '#402010'; ctx.fillRect(x, 55, winW, winH); ctx.fillStyle = currentWindowColor; ctx.fillRect(x+2, 55+2, winW-4, winH-4); } ctx.fillStyle = '#D2B48C'; ctx.fillRect(10, 95, canvas.width - 20, 25); ctx.fillStyle = '#503020'; ctx.font = 'bold 16px Brush Script MT, cursive';  ctx.textAlign = 'center'; ctx.fillText('The Cozy Corner', canvas.width / 2, 113); const texture = new THREE.CanvasTexture(canvas); texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(Math.max(1, Math.floor(width / 5)), Math.max(1, Math.floor(height / 5))); return texture; }
+            function createPetrolStationTexture(width, height) { const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d'); canvas.width = 256; canvas.height = 128; const currentWindowColor = getWindowColorForMode(); ctx.fillStyle = '#e0e0e0'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = '#c0c0c0'; ctx.fillRect(0, 0, canvas.width, 30); ctx.fillStyle = '#d00000'; ctx.fillRect(0, 25, canvas.width, 5); ctx.fillStyle = '#f8f8f8'; ctx.fillRect(150, 30, canvas.width - 150 - 10, canvas.height - 30 -10); ctx.fillStyle = '#555'; ctx.fillRect(155, 35, 80, 40); ctx.fillStyle = currentWindowColor; ctx.fillRect(158, 38, 74, 34); ctx.fillStyle = '#777'; ctx.fillRect(155, 80, 30, 35); ctx.fillStyle = '#d00000'; ctx.fillRect(20, 40, 100, 50); ctx.fillStyle = 'white'; ctx.font = 'bold 36px Impact, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('GAS', 70, 78); const texture = new THREE.CanvasTexture(canvas); texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(Math.max(1, Math.floor(width / 10)), Math.max(1, Math.floor(height/5))); return texture; }
+            function createBuildingMesh(type = 'generic') { const height = Math.random() * 20 + 12; const width = Math.random() * 8 + 5; const depth = Math.random() * 8 + 5; const buildingGeo = new THREE.BoxGeometry(width, height, depth); let buildingTexture; let baseColorHex; if (type === 'shop') { buildingTexture = createShopTexture(width, height); baseColorHex = 0xccddff; } else if (type === 'cafe') { buildingTexture = createCafeTexture(width, height); baseColorHex = 0xffeccc; } else { buildingTexture = createWindowTexture(width, height); baseColorHex = 0xddeeee; } const buildingMat = new THREE.MeshStandardMaterial({ map: buildingTexture, roughness: 0.85, metalness: 0.1, color: new THREE.Color(baseColorHex) }); const building = new THREE.Mesh(buildingGeo, buildingMat); building.userData.originalBaseColor = new THREE.Color(baseColorHex); building.userData.type = type; building.position.y = height / 2; building.castShadow = true; building.receiveShadow = true; if (type === 'cafe') { const awningGeo = new THREE.BoxGeometry(width * 0.9, 0.4, 1.5); const awningMat = new THREE.MeshStandardMaterial({ color: 0xCD5C5C, roughness: 0.7 }); const awning = new THREE.Mesh(awningGeo, awningMat); awning.position.set(0, height * 0.4, depth / 2 + 0.75 - 0.2); awning.castShadow = true; building.add(awning); } return building; }
+            function createPetrolStation() { const group = new THREE.Group(); const stationWidth = 15; const stationDepth = 10; const stationHeight = 4; const shopWidth = 5; const shopDepth = 4; const shopHeight = 3.5; const shopGeo = new THREE.BoxGeometry(shopWidth, shopHeight, shopDepth); const shopTexture = createPetrolStationTexture(shopWidth, shopHeight); const shopMat = new THREE.MeshStandardMaterial({ map: shopTexture, color: 0xf0f0f0, roughness: 0.8 }); const shopBuilding = new THREE.Mesh(shopGeo, shopMat); shopBuilding.position.set(stationWidth/2 - shopWidth/2 -1 , shopHeight/2, stationDepth/2 - shopDepth/2 -1); shopBuilding.castShadow = true; shopBuilding.receiveShadow = true; group.add(shopBuilding); group.userData.originalBaseColor = new THREE.Color(0xf0f0f0); const canopyWidth = stationWidth * 0.8; const canopyDepth = stationDepth * 1.2; const canopyHeight = 0.5; const canopyGeo = new THREE.BoxGeometry(canopyWidth, canopyHeight, canopyDepth); const canopyMat = new THREE.MeshStandardMaterial({ color: 0xdcdcdc, metalness: 0.3, roughness: 0.6 }); const canopy = new THREE.Mesh(canopyGeo, canopyMat); canopy.position.set(0, stationHeight - canopyHeight / 2, 0); canopy.castShadow = true; canopy.receiveShadow = true; group.add(canopy); const supportRadius = 0.15; const supportHeight = stationHeight - canopyHeight; const supportGeo = new THREE.CylinderGeometry(supportRadius, supportRadius, supportHeight); const supportMat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa }); for (let i = 0; i < 2; i++) { for (let j = 0; j < 2; j++) { const support = new THREE.Mesh(supportGeo, supportMat); support.position.set( (i === 0 ? -1 : 1) * canopyWidth * 0.4, supportHeight / 2, (j === 0 ? -1 : 1) * canopyDepth * 0.4 ); support.castShadow = true; group.add(support); } } const pumpWidth = 0.5; const pumpHeight = 1.5; const pumpDepth = 0.3; const pumpGeo = new THREE.BoxGeometry(pumpWidth, pumpHeight, pumpDepth); const pumpMat = new THREE.MeshStandardMaterial({ color: 0xcc4444 }); for (let i = 0; i < 2; i++) { const pump = new THREE.Mesh(pumpGeo, pumpMat); pump.position.set((i === 0 ? -1 : 1) * canopyWidth * 0.25, pumpHeight / 2, 0); pump.castShadow = true; group.add(pump); } group.userData.type = 'petrol_station'; group.userData.width = stationWidth; group.userData.depth = stationDepth; return group; }
+            const numBuildingSlots = Math.floor(sceneryLoopLength / buildingSpacing); for (let i = 0; i < numBuildingSlots; i++) { const zPos = (sceneryLoopLength / 2) - (buildingSpacing / 2) - i * buildingSpacing; if (zPos < nextPetrolStationZ && zPos > nextPetrolStationZ - petrolStationSpacing * 0.5) { const stationLeft = createPetrolStation(); const stationRight = createPetrolStation(); const xOffsetPS = roadWidth / 2 + kerbWidth + 2 + Math.random() * 2 + stationLeft.userData.width / 2; stationLeft.position.set(-xOffsetPS, 0, zPos); stationRight.position.set(xOffsetPS, 0, zPos); petrolStations.push(stationLeft, stationRight); scene.add(stationLeft); scene.add(stationRight); nextPetrolStationZ -= petrolStationSpacing * (0.8 + Math.random() * 0.4); i += Math.floor( (stationLeft.userData.width*1.5) / buildingSpacing); continue; } const roll = Math.random(); let typeLeft, typeRight; if (roll < 0.4) typeLeft = 'shop'; else if (roll < 0.7) typeLeft = 'cafe'; else typeLeft = 'generic'; const roll2 = Math.random(); if (roll2 < 0.4) typeRight = 'shop'; else if (roll2 < 0.7) typeRight = 'cafe'; else typeRight = 'generic'; const bL = createBuildingMesh(typeLeft); const bR = createBuildingMesh(typeRight); const xOL = roadWidth / 2 + kerbWidth + 2 + Math.random() * 4 + bL.geometry.parameters.width / 2; const xOR = roadWidth / 2 + kerbWidth + 2 + Math.random() * 4 + bR.geometry.parameters.width / 2; bL.position.set(-xOL, bL.position.y, zPos); bR.position.set(xOR, bR.position.y, zPos); buildings.push(bL, bR); scene.add(bL); scene.add(bR); }
+            function createStreetLight() { const g=new THREE.Group();const pH=7;const pR=0.12;const pG=new THREE.CylinderGeometry(pR,pR*0.8,pH);const pM=new THREE.MeshStandardMaterial({color:0x666666,metalness:0.9,roughness:0.3});const p=new THREE.Mesh(pG,pM);p.castShadow=true;p.position.y=pH/2;g.add(p);const aL=2;const aG=new THREE.BoxGeometry(aL,pR*1.2,pR*1.2);const a=new THREE.Mesh(aG,pM);a.position.set(0,pH-pR*2,0);g.add(a);const fH=0.4;const fR=0.3;const lFG=new THREE.CapsuleGeometry(fR,fH,4,8);const lFM=new THREE.MeshStandardMaterial({color:0x333333,emissive:0xffffaa,emissiveIntensity: isDay ? daySettings.streetLightEmissive : nightSettings.streetLightEmissive });const lF=new THREE.Mesh(lFG,lFM);lF.position.set(0,pH-pR*2-fH*0.6,0);g.add(lF);g.userData.armLength=aL;const bLi=new THREE.PointLight(0xffddaa, isDay ? daySettings.streetLightPointIntensity : nightSettings.streetLightPointIntensity,18,1.8);bLi.position.copy(lF.position);g.add(bLi);return g; } const numLightSlots = Math.floor(sceneryLoopLength / lightSpacing); for (let i = 0; i < numLightSlots; i++) { const lL = createStreetLight(); const zP = (sceneryLoopLength / 2) - (lightSpacing / 2) - i * lightSpacing; const xP = roadWidth / 2 + kerbWidth + 1.2; lL.position.set(-xP, 0, zP); lL.rotation.y = Math.PI / 2; lL.children[1].position.x = -lL.userData.armLength / 2 + 0.2; lL.children[2].position.x = -lL.userData.armLength + 0.2; lL.children[3].position.x = -lL.userData.armLength + 0.2; streetLights.push(lL); scene.add(lL); const lRI = createStreetLight(); lRI.position.set(xP, 0, zP); lRI.rotation.y = -Math.PI / 2; lRI.children[1].position.x = -lRI.userData.armLength / 2 + 0.2; lRI.children[2].position.x = -lRI.userData.armLength + 0.2; lRI.children[3].position.x = -lRI.userData.armLength + 0.2; streetLights.push(lRI); scene.add(lRI); }
+            function createTrafficLight() { const g=new THREE.Group();const pH=5;const pR=0.15;const pG=new THREE.CylinderGeometry(pR,pR,pH);const pM=new THREE.MeshStandardMaterial({color:0x555555,metalness:0.7,roughness:0.5});const p=new THREE.Mesh(pG,pM);p.position.y=pH/2;p.castShadow=true;g.add(p);const hW=0.5;const hH=1.2;const hD=0.3;const hG=new THREE.BoxGeometry(hW,hH,hD);const hM=new THREE.MeshStandardMaterial({color:0x333333});const h=new THREE.Mesh(hG,hM);h.position.y=pH-hH/2;h.castShadow=true;g.add(h);const lRa=hW*0.25;const lGe=new THREE.SphereGeometry(lRa,16,8);const rMa=new THREE.MeshStandardMaterial({color:0xff0000,emissive:0xdd0000,emissiveIntensity:1.2});const yMa=new THREE.MeshStandardMaterial({color:0xffff00,emissive:0xdddd00,emissiveIntensity:1.2});const _gMa=new THREE.MeshStandardMaterial({color:0x00ff00,emissive:0x00dd00,emissiveIntensity:1.2});const rLi=new THREE.Mesh(lGe,rMa);rLi.position.set(0,hH*0.3,hD/2+0.01);h.add(rLi);const yLi=new THREE.Mesh(lGe,yMa);yLi.position.set(0,0,hD/2+0.01);h.add(yLi);const _gLi=new THREE.Mesh(lGe,_gMa);_gLi.position.set(0,-hH*0.3,hD/2+0.01);h.add(_gLi);return g;} const tL = createTrafficLight(); const tR = createTrafficLight(); const tZ = sceneryLoopLength * 0.3; const tX = roadWidth / 2 + kerbWidth + 0.5; tL.position.set(-tX, 0, tZ); tL.rotation.y = Math.PI / 2; tR.position.set(tX, 0, tZ); tR.rotation.y = -Math.PI / 2; trafficLights.push(tL, tR); scene.add(tL); scene.add(tR);
+            pointGeometry = new THREE.SphereGeometry(pointRadius, 8, 8); pointMaterial = new THREE.MeshStandardMaterial({ color: 0xffff00, emissive: 0xccaa00, emissiveIntensity: 1 }); for (let i = 0; i < numPoints; i++) { const point = new THREE.Mesh(pointGeometry, pointMaterial); point.castShadow = true; resetPointPosition(point, true); points.push(point); scene.add(point); }
+
+            const dracoLoader = new DRACOLoader(loadingManager);
+            dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
+            gltfLoader.setDRACOLoader(dracoLoader);
+            const carUrl = 'https://threejs.org/examples/models/gltf/ferrari.glb';
+
+            gltfLoader.load(carUrl, (gltf) => {
+                carModel = gltf.scene;
+                carModel.scale.set(0.8, 0.8, 0.8);
+                const box = new THREE.Box3().setFromObject(carModel);
+                carBaseY = -box.min.y + 0.01;
+                carModel.position.set(0, carBaseY, 0);
+                carModel.rotation.y = Math.PI;
+                carModel.traverse((node) => { if (node.isMesh) { node.castShadow = true; node.receiveShadow = true; originalCarMaterials.set(node, node.material.clone()); } });
+                scene.add(carModel);
+                resetEnemyCar();
+                // Initial camera and controls target update after car load
+                camera.position.set(carModel.position.x, carModel.position.y + 4, carModel.position.z - 8);
+                controls.target.set(carModel.position.x, carBaseY + 0.8, carModel.position.z);
+                controls.update();
+            }, undefined, (error) => { console.error('An error happened loading the car model:', error); const fallbackGeo = new THREE.BoxGeometry(2, 1, 4); const fallbackMat = new THREE.MeshStandardMaterial({color: 0xff0000}); carModel = new THREE.Mesh(fallbackGeo, fallbackMat); carBaseY = 0.5 + 0.01; carModel.position.set(0, carBaseY, 0); carModel.castShadow = true; carModel.receiveShadow = true; scene.add(carModel); camera.position.set(0, carBaseY + 4, -8); controls.target.set(0, carBaseY + 0.8, 0); controls.update(); loadingScreen.textContent = 'Error loading car model.'; loadingScreen.classList.remove('hidden'); loadingScreen.style.opacity = 1; });
+
+            window.addEventListener('resize', onWindowResize, false);
+            updateScoreDisplay();
+            console.log("Init finished");
+        }
+
+
+        function setupMenuControls() {
+            // Game Controls (Keyboard & Touch for car movement)
+            window.addEventListener('keydown', (event) => {
+                if (gameState !== 'PLAYING' || isGameOver) return;
+                if (event.key === 'ArrowLeft' || event.key.toLowerCase() === 'a') moveLeft = true;
+                else if (event.key === 'ArrowRight' || event.key.toLowerCase() === 'd') moveRight = true;
+                else if (event.key === 'ArrowDown' || event.key.toLowerCase() === 's') isBraking = true;
+            });
+            window.addEventListener('keyup', (event) => {
+                if (gameState !== 'PLAYING' && !isGameOver) return; // Allow restart key even if not playing
+                if (isGameOver && event.key !== 'Enter' && event.key !== ' ') return;
+
+                if (event.key === 'ArrowLeft' || event.key.toLowerCase() === 'a') moveLeft = false;
+                else if (event.key === 'ArrowRight' || event.key.toLowerCase() === 'd') moveRight = false;
+                else if (event.key === 'ArrowDown' || event.key.toLowerCase() === 's') isBraking = false;
+                else if (isGameOver && (event.key === 'Enter' || event.key === ' ')) startGame(); // Use startGame for restart
+            });
+
+            const leftButton = document.getElementById('left-button');
+            const rightButton = document.getElementById('right-button');
+            const brakeButton = document.getElementById('brake-button');
+            if (leftButton) { leftButton.addEventListener('touchstart', (e) => { if (gameState === 'PLAYING' && !isGameOver) { e.preventDefault(); moveLeft = true; } }, { passive: false }); leftButton.addEventListener('touchend', (e) => { e.preventDefault(); moveLeft = false; }); leftButton.addEventListener('touchcancel', (e) => { e.preventDefault(); moveLeft = false; }); }
+            if (rightButton) { rightButton.addEventListener('touchstart', (e) => { if (gameState === 'PLAYING' && !isGameOver) { e.preventDefault(); moveRight = true; } }, { passive: false }); rightButton.addEventListener('touchend', (e) => { e.preventDefault(); moveRight = false; }); rightButton.addEventListener('touchcancel', (e) => { e.preventDefault(); moveRight = false; }); }
+            if (brakeButton) { brakeButton.addEventListener('touchstart', (e) => { if (gameState === 'PLAYING' && !isGameOver) { e.preventDefault(); isBraking = true; } }, { passive: false }); brakeButton.addEventListener('touchend', (e) => { e.preventDefault(); isBraking = false; }); brakeButton.addEventListener('touchcancel', (e) => { e.preventDefault(); isBraking = false; }); }
+
+
+            // Menu Button Listeners
+            playButton.addEventListener('click', startGame);
+            settingsButton.addEventListener('click', () => {
+                gameState = 'SETTINGS';
+                manageUI();
+            });
+            quitButton.addEventListener('click', () => {
+                // In a browser, "quit" usually means returning to a main/less active state.
+                // Or you could show a "Thanks for playing" message and hide canvas.
+                // For now, just go back to main menu.
+                gameState = 'MENU';
+                isGameOver = false; // Ensure game over state is reset
+                manageUI();
+            });
+            backToMainMenuButton.addEventListener('click', () => {
+                gameState = 'MENU';
+                manageUI();
+            });
+            volumeSlider.addEventListener('input', (event) => {
+                masterVolume = parseFloat(event.target.value);
+                volumeValueDisplay.textContent = `${Math.round(masterVolume * 100)}%`;
+                console.log("Master Volume set to (placeholder):", masterVolume);
+                // Apply masterVolume to actual audio sources here
+            });
+            volumeSlider.value = masterVolume; // Initialize slider
+            volumeValueDisplay.textContent = `${Math.round(masterVolume * 100)}%`;
+
+
+            // Other UI listeners
+            restartButton.addEventListener('click', startGame); // Restart button also calls startGame
+            dayNightToggle.addEventListener('click', () => { isDay = !isDay; updateVisualMode(); });
+            difficultySelect.addEventListener('change', () => { applyDifficulty(); /* Optionally auto-restart: startGame(); */ });
+        }
+
+
+        function startGame() {
+            console.log("Starting game...");
+            isGameOver = false; // Reset game over flag
+            gameState = 'PLAYING';
+            manageUI(); // Show game UI, hide menus
+
+            score = 0;
+            updateScoreDisplay();
+
+            if (carModel) {
+                carModel.position.set(0, carBaseY, 0);
+                carModel.traverse((node) => { if (node.isMesh && originalCarMaterials.has(node)) { node.material = originalCarMaterials.get(node).clone(); } });
+            }
+            resetEnemyCar();
+            points.forEach(p => resetPointPosition(p, true));
+
+            const halfScenery = sceneryLoopLength / 2;
+            roadLines.forEach((line, i) => { const lineLength = 4; const lineGap = 4; line.position.z = halfScenery - (lineLength / 2) - i * (lineLength + lineGap); });
+            buildings.forEach(b => { b.position.z += sceneryLoopLength * 1.5; }); // Move way back to ensure they re-generate through loop
+            petrolStations.forEach(ps => { ps.position.z += sceneryLoopLength * 2; });
+            nextPetrolStationZ = roadLength / 2 - Math.random() * petrolStationSpacing; // Reset petrol station scheduling
+            streetLights.forEach(sl => { sl.position.z += sceneryLoopLength * 1.5; });
+            trafficLights.forEach(tl => { tl.position.z = sceneryLoopLength * 0.3 + Math.random()*10; }); // Reset traffic lights too
+
+            currentDriveSpeed = normalDriveSpeed;
+            isBraking = false;
+            moveLeft = false;
+            moveRight = false;
+
+            if(controls && carModel) { // Ensure controls and carModel exist
+                camera.position.set(carModel.position.x, carModel.position.y + 4, carModel.position.z - 8); // Reset camera
+                controls.target.set(carModel.position.x, carBaseY + 0.8, carModel.position.z);
+                controls.update();
+            }
+            applyDifficulty(); // Re-apply difficulty in case it was changed in menu
+        }
+
+        function resetEnemyCar() { if (!carModel) return; if (enemyCar) scene.remove(enemyCar); enemyCar = carModel.clone(); enemyCar.traverse((node) => { if (node.isMesh) { const blueMaterial = (originalCarMaterials.get(node) || node.material).clone(); blueMaterial.color.setHex(0x0033ff); node.material = blueMaterial; node.castShadow = true; node.receiveShadow = true; } }); const initialEnemyX = (Math.random() < 0.5 ? -1 : 1) * roadWidth / 4; enemyCar.position.set(initialEnemyX, carBaseY, roadLength * 0.7); enemyCar.rotation.y = Math.PI; scene.add(enemyCar); }
+        function resetPointPosition(point, initial = false) { const laneWidth = roadWidth / 2 - kerbWidth - pointRadius * 2; point.position.x = (Math.random() * 2 - 1) * laneWidth; point.position.y = pointRadius + 0.1; if (initial) point.position.z = Math.random() * roadLength - roadLength / 2; else point.position.z = sceneryLoopLength / 2 + Math.random() * roadLength * 0.2; point.visible = true; }
+        function updateScoreDisplay() { scoreElement.textContent = `Score: ${score}`; }
+        function onWindowResize() { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+        function handleGameOver() { isGameOver = true; manageUI(); /* Update UI to show game over screen */ }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (controls && controls.enabled) { // Only update controls if enabled
+                controls.update();
+            }
+
+            // Always render the scene, but game logic only runs if PLAYING
+            if (gameState === 'PLAYING' && !isGameOver) {
+                currentDriveSpeed = isBraking ? normalDriveSpeed * brakingSpeedFactor : normalDriveSpeed;
+                const deltaZ = currentDriveSpeed;
+
+                if (carModel && originalCarMaterials.size > 0) { carModel.traverse((node) => { if (node.isMesh && originalCarMaterials.has(node)) { const originalMaterial = originalCarMaterials.get(node); if (originalMaterial.color && originalMaterial.color.r > 0.6 && originalMaterial.color.g < 0.3 && originalMaterial.color.b < 0.3) { if (isBraking) { node.material.emissive.setHex(0xff0000); node.material.emissiveIntensity = 0.6; } else { node.material.emissive.copy(originalMaterial.emissive || new THREE.Color(0x000000)); node.material.emissiveIntensity = originalMaterial.emissiveIntensity || 0; } } } }); }
+
+                const halfScenery = sceneryLoopLength / 2; roadLines.forEach(l => { l.position.z -= deltaZ; if (l.position.z < -halfScenery) l.position.z += sceneryLoopLength; }); buildings.forEach(b => { b.position.z -= deltaZ; if (b.position.z < -halfScenery - b.geometry.parameters.depth) { b.position.z += sceneryLoopLength + buildingSpacing * (1 + Math.random()); const s = Math.sign(b.position.x); const xO = roadWidth / 2 + kerbWidth + 2 + Math.random() * 4 + b.geometry.parameters.width / 2; b.position.x = s * xO; } }); petrolStations.forEach(ps => { ps.position.z -= deltaZ; if (ps.position.z < -halfScenery - ps.userData.depth) { ps.position.z = nextPetrolStationZ; const sideSign = Math.sign(ps.position.x); const xOffsetPS = roadWidth / 2 + kerbWidth + 2 + Math.random() * 2 + ps.userData.width / 2; ps.position.x = sideSign * xOffsetPS; nextPetrolStationZ -= petrolStationSpacing * (0.8 + Math.random() * 0.4); if (nextPetrolStationZ < -halfScenery - petrolStationSpacing) { nextPetrolStationZ = halfScenery - Math.random() * petrolStationSpacing * 0.5; } } }); streetLights.forEach(l => { l.position.z -= deltaZ; if (l.position.z < -halfScenery - 5) l.position.z += sceneryLoopLength + lightSpacing * (0.5+Math.random()); }); trafficLights.forEach(l => { l.position.z -= deltaZ; if (l.position.z < -halfScenery - 10) l.position.z += sceneryLoopLength * 1.2 + Math.random() * roadLength *0.5 ; }); kerbs.forEach(k => { k.position.z -= deltaZ; if (k.position.z < -halfScenery) k.position.z += sceneryLoopLength; });
+                points.forEach(p => { if (!p.visible) return; p.position.z -= deltaZ; if (p.position.z < -roadLength / 2) resetPointPosition(p); });
+                if (enemyCar) { enemyCar.position.z -= enemyCarSpeed * (isBraking ? (brakingSpeedFactor + 0.2) : 1); if (enemyCar.position.z < -roadLength / 2 - 10) { enemyCar.position.z = roadLength / 2 + Math.random() * 50; enemyCar.position.x = (Math.random() < 0.5 ? -1 : 1) * roadWidth / 4 * (0.5 + Math.random()); } }
+
+                if (carModel && carBaseY !== undefined) {
+                    let maxBounds = roadWidth / 2 - kerbWidth - 0.2;
+                    try { const b = new THREE.Box3().setFromObject(carModel); const cW = b.max.x - b.min.x; if (cW > 0) maxBounds = roadWidth / 2 - kerbWidth - cW / 2 - 0.1; } catch(e) { console.warn("Error calculating car bounds:", e); }
+
+                    if (moveLeft && carModel.position.x > -maxBounds) carModel.position.x -= carMoveSpeed;
+                    if (moveRight && carModel.position.x < maxBounds) carModel.position.x += carMoveSpeed;
+                    carModel.position.x = Math.max(-maxBounds, Math.min(maxBounds, carModel.position.x));
+                    playerBox.setFromObject(carModel);
+
+                    if (controls && controls.enabled) {
+                        const targetPosition = new THREE.Vector3(carModel.position.x, carBaseY + 0.8, carModel.position.z);
+                        controls.target.lerp(targetPosition, 0.1);
+                    }
+                }
+                if (carModel) { points.forEach(p => { if (!p.visible) return; pointBox.setFromObject(p); if (playerBox.intersectsBox(pointBox)) { score += pointValue; updateScoreDisplay(); p.visible = false; } }); if (enemyCar) { enemyBox.setFromObject(enemyCar); if (playerBox.intersectsBox(enemyBox)) { handleGameOver(); } } }
+            }
+            // else if (gameState === 'MENU' || gameState === 'SETTINGS' || isGameOver) {
+            //     // Optionally, if you want a specific idle animation or effect for menus, do it here.
+            //     // For now, it just renders the static scene.
+            // }
+
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
